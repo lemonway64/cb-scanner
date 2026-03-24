@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>無擔保轉換公司債公告監控</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f5f2eb;
+      --surface: #fdfaf4;
+      --border: #d6cebc;
+      --border-light: #e8e2d4;
+      --text: #1a1814;
+      --text-muted: #6b6254;
+      --text-faint: #a09484;
+      --accent: #8b3a1e;
+      --accent-light: #f2e8e2;
+      --accent-mid: #c4623c;
+      --tag-sii: #1a3d5c;
+      --tag-sii-bg: #e4edf5;
+      --tag-otc: #2d5a27;
+      --tag-otc-bg: #e4f0e2;
+      --mono: 'IBM Plex Mono', monospace;
+      --serif: 'Noto Serif TC', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--serif);
+      min-height: 100vh;
+    }
+
+    /* Texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      margin-bottom: 40px;
+    }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(22px, 4vw, 32px);
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      gap: 32px;
+      margin: 28px 0 0;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-faint);
+      letter-spacing: 0.04em;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+
+    .filter-btn:hover { border-color: var(--accent-mid); color: var(--accent); }
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 2px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-box:focus { border-color: var(--accent-mid); }
+    .search-box::placeholder { color: var(--text-faint); }
+
+    /* Cards */
+    #results { display: flex; flex-direction: column; gap: 1px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      padding: 20px 24px;
+      transition: border-color 0.15s, background 0.15s;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    .card:hover {
+      border-color: var(--border);
+      background: #fff;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .code-badge {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 8px;
+      border-radius: 2px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .company-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .market-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 2px;
+      white-space: nowrap;
+      letter-spacing: 0.06em;
+    }
+
+    .market-tag.sii {
+      background: var(--tag-sii-bg);
+      color: var(--tag-sii);
+    }
+
+    .market-tag.otc {
+      background: var(--tag-otc-bg);
+      color: var(--tag-otc);
+    }
+
+    .subject {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .date {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-faint);
+    }
+
+    .link-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid var(--accent-light);
+      padding: 4px 10px;
+      border-radius: 2px;
+      transition: all 0.15s;
+      letter-spacing: 0.04em;
+    }
+
+    .link-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Empty / loading states */
+    .state-msg {
+      text-align: center;
+      padding: 60px 0;
+      color: var(--text-faint);
+      font-size: 14px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Update time */
+    .update-time {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-faint);
+      margin-top: 40px;
+      text-align: right;
+      letter-spacing: 0.04em;
+    }
+
+    /* Divider rule */
+    .rule {
+      border: none;
+      border-top: 1px solid var(--border-light);
+      margin: 32px 0;
+    }
+
+    @media (max-width: 600px) {
+      .card { padding: 16px; }
+      .stats { gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <p class="eyebrow">公開資訊觀測站 · 自動監控</p>
+    <h1>無擔保轉換公司債<br>公告監控儀表板</h1>
+    <p class="subtitle">自動掃描全台上市櫃公司，篩選「代收股款行庫及存儲專戶行庫」相關重大訊息公告。</p>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value" id="stat-total">—</span>
+        <span class="stat-label">符合公告</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-companies">—</span>
+        <span class="stat-label">涉及公司</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-year">—</span>
+        <span class="stat-label">掃描年度</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="sii">上市</button>
+    <button class="filter-btn" data-filter="otc">上櫃</button>
+    <input class="search-box" id="search" type="text" placeholder="搜尋公司名稱或代碼…" />
+  </div>
+
+  <div id="results">
+    <div class="state-msg">
+      <div class="spinner"></div>
+      載入資料中…
+    </div>
+  </div>
+
+  <p class="update-time" id="update-time"></p>
+</div>
+
+<script>
+  let allData = [];
+  let currentFilter = 'all';
+
+  async function loadData() {
+    try {
+      const res = await fetch('data.json?t=' + Date.now());
+      if (!res.ok) throw new Error('no data');
+      const json = await res.json();
+      allData = json.records || [];
+      renderStats(json);
+      render();
+      if (json.updated_at) {
+        document.getElementById('update-time').textContent =
+          '最後更新：' + json.updated_at;
+      }
+    } catch (e) {
+      document.getElementById('results').innerHTML =
+        '<div class="state-msg">尚無資料。請先執行爬蟲產生 data.json，<br>或等待 GitHub Actions 自動排程完成。</div>';
+    }
+  }
+
+  function renderStats(json) {
+    const companies = new Set(allData.map(r => r['股票代碼'])).size;
+    document.getElementById('stat-total').textContent = allData.length;
+    document.getElementById('stat-companies').textContent = companies;
+    document.getElementById('stat-year').textContent = (json.year || '—') + ' 年';
+  }
+
+  function render() {
+    const query = document.getElementById('search').value.trim().toLowerCase();
+    const filtered = allData.filter(r => {
+      const matchMarket =
+        currentFilter === 'all' ||
+        (currentFilter === 'sii' && r['市場別'] === '上市') ||
+        (currentFilter === 'otc' && r['市場別'] === '上櫃');
+      const matchSearch = !query ||
+        r['股票代碼'].includes(query) ||
+        (r['公司名稱'] || '').toLowerCase().includes(query) ||
+        (r['公告主旨'] || '').toLowerCase().includes(query);
+      return matchMarket && matchSearch;
+    });
+
+    const container = document.getElementById('results');
+    if (!filtered.length) {
+      container.innerHTML = '<div class="state-msg">無符合條件的公告。</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map((r, i) => {
+      const isOtc = r['市場別'] === '上櫃';
+      const delay = Math.min(i * 40, 400);
+      const link = r['公告連結']
+        ? `<a class="link-btn" href="${r['公告連結']}" target="_blank" rel="noopener">查看公告 →</a>`
+        : '';
+      return `
+        <div class="card" style="animation-delay:${delay}ms">
+          <div class="card-header">
+            <span class="code-badge">${r['股票代碼']}</span>
+            <span class="company-name">${r['公司名稱'] || ''}</span>
+            <span class="market-tag ${isOtc ? 'otc' : 'sii'}">${r['市場別'] || ''}</span>
+          </div>
+          <p class="subject">${r['公告主旨'] || ''}</p>
+          <div class="card-footer">
+            <span class="date">${r['公告日期'] || ''}</span>
+            ${link}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  document.getElementById('search').addEventListener('input', render);
+
+  loadData();
+</script>
+</body>
+</html>
